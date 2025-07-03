@@ -202,7 +202,7 @@ cclog() {
         --delimiter=$'\t' \
         --with-nth="1,2,3" \
         --preview "$preview_cmd" \
-        --preview-window="down:60%:wrap" \
+        --preview-window="down:60%:nowrap" \
         --height="100%" \
         --ansi \
         --bind "ctrl-r:execute(claude -r {4})+abort" \
