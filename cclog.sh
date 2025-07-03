@@ -1,6 +1,13 @@
 #!/bin/bash
 # Browse Claude Code logs with fzf
 
+# Get the full path to this script at the top level
+CCLOG_SCRIPT_PATH="${BASH_SOURCE[0]:-$0}"
+# Resolve to absolute path
+if [[ ! "$CCLOG_SCRIPT_PATH" =~ ^/ ]]; then
+    CCLOG_SCRIPT_PATH="$(cd "$(dirname "$CCLOG_SCRIPT_PATH")" && pwd)/$(basename "$CCLOG_SCRIPT_PATH")"
+fi
+
 # Function to format Claude Code chat logs with colors
 cclog_view() {
     local file="$1"
@@ -149,39 +156,44 @@ cclog_list() {
         return 1
     fi
 
-    # Get the full path to this script
-    local script_path="${BASH_SOURCE[0]:-$0}"
-    # Resolve to absolute path
-    if [[ ! "$script_path" =~ ^/ ]]; then
-        script_path="$(cd "$(dirname "$script_path")" && pwd)/$(basename "$script_path")"
-    fi
+    # Use the script path set at the top level
+    local script_path="$CCLOG_SCRIPT_PATH"
 
     # Generate session list
     local session_list=$(__cclog_generate_list "$claude_projects_dir")
 
-    # Prepare preview command
-    local preview_cmd=$(
-        cat <<EOF
-bash -c '
-    source "$script_path" >/dev/null 2>&1
+    # Prepare preview command - properly escape script path
+    local preview_cmd="bash -c '
+    # Source the script
+    if [ -f \"$script_path\" ]; then
+        source \"$script_path\"
+    else
+        echo \"Error: Script not found at $script_path\" >&2
+        exit 1
+    fi
+
     session_id={4}
-    file="$claude_projects_dir/\${session_id}.jsonl"
-    cclog_info "\$file" "\$session_id"
-    echo
-    cclog_view "\$file"
-'
-EOF
-    )
+    file=\"$claude_projects_dir/\${session_id}.jsonl\"
+
+    # Check if functions are available
+    if type cclog_info >/dev/null 2>&1; then
+        cclog_info \"\$file\" \"\$session_id\"
+        echo
+        cclog_view \"\$file\"
+    else
+        echo \"Error: Functions not loaded\" >&2
+    fi
+'"
 
     # Use fzf with formatted list
     local selected=$(echo "$session_list" | fzf \
-        --header-lines=1 \
+        --header-lines="1" \
         --header "Claude Code Sessions for: $(pwd)"$'\nEnter: View log, Ctrl-r: Resume conversation' \
         --delimiter=$'\t' \
-        --with-nth=1,2,3 \
+        --with-nth="1,2,3" \
         --preview "$preview_cmd" \
-        --preview-window=down:60%:wrap \
-        --height=100% \
+        --preview-window="down:60%:wrap" \
+        --height="100%" \
         --ansi \
         --bind "ctrl-r:execute(claude -r {4})+abort")
 
@@ -196,6 +208,6 @@ EOF
 }
 
 # Execute the function if script is run directly
-if [ "${BASH_SOURCE[0]}" == "${0}" ]; then
+if [ "${BASH_SOURCE[0]}" = "${0}" ]; then
     cclog_list
 fi
