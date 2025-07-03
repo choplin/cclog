@@ -196,27 +196,45 @@ cclog() {
 '"
 
     # Use fzf with formatted list
-    local selected=$(echo "$session_list" | fzf \
+    local result=$(echo "$session_list" | fzf \
         --header-lines="1" \
-        --header "Claude Code Sessions for: $(pwd)"$'\nEnter: View log, Ctrl-r: Resume conversation' \
+        --header "Claude Code Sessions for: $(pwd)"$'\nEnter: Return session ID, Ctrl-v: View log\nCtrl-p: Return path, Ctrl-r: Resume conversation' \
         --delimiter=$'\t' \
         --with-nth="1,2,3" \
         --preview "$preview_cmd" \
         --preview-window="down:60%:wrap" \
         --height="100%" \
         --ansi \
-        --bind "ctrl-r:execute(claude -r {4})+abort")
+        --bind "ctrl-r:execute(claude -r {4})+abort" \
+        --expect="ctrl-v,ctrl-p")
 
-    # Process selected session
-    if [ -n "$selected" ]; then
-        local full_id=$(echo "$selected" | awk -F$'\t' '{print $4}')
-        local selected_file="$claude_projects_dir/${full_id}.jsonl"
+    # Process result
+    if [ -n "$result" ]; then
+        local key=$(echo "$result" | head -1)
+        local selected=$(echo "$result" | tail -n +2)
 
-        # Display the log with viewer
-        if [ -n "$PAGER" ]; then
-            cclog_view "$selected_file" | $PAGER
-        else
-            cclog_view "$selected_file" | less -R
+        if [ -n "$selected" ]; then
+            local full_id=$(echo "$selected" | awk -F$'\t' '{print $4}')
+
+            case "$key" in
+            ctrl-v)
+                # View the log
+                local selected_file="$claude_projects_dir/${full_id}.jsonl"
+                if [ -n "$PAGER" ]; then
+                    cclog_view "$selected_file" | $PAGER
+                else
+                    cclog_view "$selected_file" | less -R
+                fi
+                ;;
+            ctrl-p)
+                # Return file path
+                echo "$claude_projects_dir/${full_id}.jsonl"
+                ;;
+            *)
+                # Default: return session ID
+                echo "$full_id"
+                ;;
+            esac
         fi
     fi
 }
