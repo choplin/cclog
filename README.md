@@ -4,6 +4,11 @@ Browse and view Claude Code session logs using fzf.
 
 https://github.com/user-attachments/assets/5019c393-8082-4cbc-b2b5-ec0549585681
 
+The demo shows:
+1. Opening the session list with `cclog`
+2. Navigating through sessions with real-time preview
+3. Resuming a Claude Code session with `Ctrl-R`
+
 ## Installation
 
 ### Using Sheldon (Recommended)
