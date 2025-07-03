@@ -84,7 +84,7 @@ source /path/to/cclog/cclog.sh
 ### List sessions with fzf
 
 ```bash
-cclog_list
+cclog
 ```
 
 **Key bindings:**
@@ -101,7 +101,7 @@ cclog_view ~/.claude/projects/*/session-id.jsonl
 ### Show session information
 
 ```bash
-cclog_info ~/.claude/projects/*/session-id.jsonl session-id
+cclog_info ~/.claude/projects/*/session-id.jsonl
 ```
 
 ## Requirements
