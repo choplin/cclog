@@ -1,0 +1,28 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Editor directories and files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Logs
+*.log
+
+# Test files
+test/
+tests/
+*.test.*
+
+# Temporary files
+*.tmp
+*.temp
+/tmp/
+
+# Claude Code specific
+.claude/

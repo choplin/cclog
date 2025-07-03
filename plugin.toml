@@ -1,0 +1,8 @@
+# sheldon plugin configuration
+name = "cclog"
+description = "Claude Code Session Browser"
+
+[hooks]
+post = """
+source cclog
+"""
