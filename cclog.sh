@@ -81,34 +81,121 @@ EOF
         "$jq_query" "$file"
 }
 
+# Function to format duration from seconds
+__cclog_format_duration() {
+    local duration=$1
+
+    if [ "$duration" -lt 60 ]; then
+        echo "${duration}s"
+    elif [ "$duration" -lt 3600 ]; then
+        echo "$((duration / 60))m"
+    elif [ "$duration" -lt 86400 ]; then
+        local hours=$((duration / 3600))
+        local minutes=$(((duration % 3600) / 60))
+        if [ "$minutes" -gt 0 ]; then
+            echo "${hours}h ${minutes}m"
+        else
+            echo "${hours}h"
+        fi
+    else
+        local days=$((duration / 86400))
+        local hours=$(((duration % 86400) / 3600))
+        if [ "$hours" -gt 0 ]; then
+            echo "${days}d ${hours}h"
+        else
+            echo "${days}d"
+        fi
+    fi
+}
+
+# Function to get session stats efficiently
+__cclog_get_session_stats() {
+    local file="$1"
+
+    # Try to get timestamp from first line
+    local start_time=$(head -1 "$file" | jq -r '.timestamp' 2>/dev/null)
+
+    # If first line doesn't have a valid timestamp, search first 10 lines
+    if [ "$start_time" = "null" ] || [ -z "$start_time" ]; then
+        start_time=$(head -10 "$file" | jq -r 'select(.type == "user" or .type == "assistant") | .timestamp' 2>/dev/null | head -1)
+    fi
+
+    # Try to get timestamp from last line
+    local end_time=$(tail -1 "$file" | jq -r '.timestamp' 2>/dev/null)
+
+    # If last line doesn't have a valid timestamp, search last 10 lines
+    if [ "$end_time" = "null" ] || [ -z "$end_time" ]; then
+        end_time=$(tail -10 "$file" | jq -r 'select(.type == "user" or .type == "assistant") | .timestamp' 2>/dev/null | tail -1)
+    fi
+
+    # Calculate duration in seconds
+    local duration_seconds=0
+    if [ -n "$start_time" ] && [ "$start_time" != "null" ] && [ -n "$end_time" ] && [ "$end_time" != "null" ]; then
+        local start_epoch=$(date -j -f "%Y-%m-%dT%H:%M:%S" "${start_time%%.*}" "+%s" 2>/dev/null || date -d "${start_time}" "+%s" 2>/dev/null)
+        local end_epoch=$(date -j -f "%Y-%m-%dT%H:%M:%S" "${end_time%%.*}" "+%s" 2>/dev/null || date -d "${end_time}" "+%s" 2>/dev/null)
+
+        if [ -n "$start_epoch" ] && [ -n "$end_epoch" ]; then
+            duration_seconds=$((end_epoch - start_epoch))
+        fi
+    fi
+
+    # Try to get first user message from first few lines
+    local first_user_msg=$(head -10 "$file" | jq -r 'select(.type == "user" and (.message.content | type) == "string") | .message.content' 2>/dev/null | head -1)
+
+    # Return values
+    echo "$start_time|$duration_seconds|$first_user_msg"
+}
+
 # Function to generate session list (internal)
 __cclog_generate_list() {
     local claude_projects_dir="$1"
-    local session_list=$(printf "%-12s\t%-20s\t%s\tFULL_ID\n" "SESSION_ID" "TIMESTAMP" "FIRST_MESSAGE")
+
+    # Temporary file to collect session data
+    local temp_file=$(mktemp)
 
     while IFS= read -r -d '' file; do
         local basename=$(basename "$file")
         local full_session_id="${basename%.jsonl}"
-        local short_session_id="${full_session_id:0:8}"
 
-        # Get first timestamp and first user message
-        local first_timestamp=$(jq -r 'select(.type == "user" or .type == "assistant") | .timestamp' "$file" 2>/dev/null | head -1)
-        local first_user_msg=$(jq -r 'select(.type == "user" and (.message.content | type) == "string") | .message.content' "$file" 2>/dev/null | head -1)
+        # Get session stats (timestamp, duration, and first user message)
+        local stats=$(__cclog_get_session_stats "$file")
+        IFS='|' read -r start_time duration_seconds first_user_msg <<<"$stats"
 
-        if [ -n "$first_timestamp" ]; then
-            # Format timestamp
-            local formatted_time=$(echo "$first_timestamp" | sed 's/T/ /' | cut -d'.' -f1)
+        if [ -n "$start_time" ] && [ "$start_time" != "null" ]; then
+            # Format duration
+            local duration=$(__cclog_format_duration $duration_seconds)
 
-            # Use full message without truncation
-            local msg="${first_user_msg:-"no user message"}"
+            # Count all lines (much faster than parsing JSON)
+            local msg_count=$(wc -l <"$file" | tr -d ' ')
 
-            session_list+=$(printf "\n%-12s\t%-20s\t%s\t%s" "${short_session_id}" "${formatted_time}" "${msg}" "${full_session_id}")
-        else
-            session_list+=$(printf "\n%-12s\t%-20s\t%s\t%s" "${short_session_id}" "unknown" "no messages" "${full_session_id}")
+            # Get first user message for summary
+            local summary="${first_user_msg:-"no user message"}"
+            if [ -z "$first_user_msg" ]; then
+                # If first line wasn't a user message, we need to find it
+                summary=$(jq -r 'select(.type == "user" and (.message.content | type) == "string") | .message.content' "$file" 2>/dev/null | head -1)
+                [ -z "$summary" ] && summary="no user message"
+            fi
+
+            # Format timestamp as "YYYY-MM-DD HH:MM:SS"
+            local formatted_time=$(echo "$start_time" | sed 's/T/ /' | cut -d'.' -f1)
+
+            # Get timestamp for sorting
+            local timestamp_epoch=$(date -j -f "%Y-%m-%dT%H:%M:%S" "${start_time%%.*}" "+%s" 2>/dev/null || date -d "${start_time}" "+%s" 2>/dev/null)
+
+            # Store session info with epoch timestamp for sorting
+            echo "${timestamp_epoch:-0}|$formatted_time|$duration|$msg_count|$summary|$full_session_id" >>"$temp_file"
         fi
     done < <(find "$claude_projects_dir" -maxdepth 1 -name "*.jsonl" -print0)
 
-    echo "$session_list"
+    # Generate formatted output
+    printf "%-19s %-8s %-8s  %s\n" "TIMESTAMP" "Duration" "Messages" "FIRST_MESSAGE"
+
+    # Sort by timestamp (newest first) and display
+    while IFS='|' read -r timestamp_epoch formatted_time duration msg_count summary full_id; do
+        printf "%-19s %8s %8d  %s\t%s\n" "$formatted_time" "$duration" "$msg_count" "$summary" "$full_id"
+    done < <(sort -t'|' -k1,1 -rn "$temp_file")
+
+    rm -f "$temp_file"
 }
 
 # Function to show session info
@@ -124,29 +211,18 @@ cclog_info() {
     printf "%-10s %s\n" "File:" "${session_id}.jsonl"
     printf "%-10s %s\n" "Messages:" "$(wc -l <"$file" | tr -d " ")"
 
-    # Get start and end timestamps
-    local start_time=$(jq -r 'select(.type == "user" or .type == "assistant") | .timestamp' "$file" 2>/dev/null | head -1)
-    local end_time=$(jq -r 'select(.type == "user" or .type == "assistant") | .timestamp' "$file" 2>/dev/null | tail -1)
+    # Reuse the stats function to get timestamps and duration
+    local stats=$(__cclog_get_session_stats "$file")
+    IFS='|' read -r start_time duration_seconds first_user_msg <<<"$stats"
 
-    if [ -n "$start_time" ] && [ -n "$end_time" ]; then
+    if [ -n "$start_time" ] && [ "$start_time" != "null" ]; then
         # Format start time
         local formatted_start=$(echo "$start_time" | sed 's/T/ /' | cut -d'.' -f1)
         printf "%-10s %s\n" "Started:" "$formatted_start"
 
-        # Calculate duration
-        local start_epoch=$(date -j -f "%Y-%m-%d %H:%M:%S" "${formatted_start}" "+%s" 2>/dev/null || date -d "${formatted_start}" "+%s" 2>/dev/null)
-        local end_epoch=$(date -j -f "%Y-%m-%dT%H:%M:%S" "${end_time%%.*}" "+%s" 2>/dev/null || date -d "${end_time}" "+%s" 2>/dev/null)
-
-        if [ -n "$start_epoch" ] && [ -n "$end_epoch" ]; then
-            local duration=$((end_epoch - start_epoch))
-            local hours=$((duration / 3600))
-            local minutes=$(((duration % 3600) / 60))
-            local seconds=$((duration % 60))
-
-            local duration_str=""
-            [ $hours -gt 0 ] && duration_str="${hours}h "
-            [ $minutes -gt 0 ] && duration_str="${duration_str}${minutes}m "
-            duration_str="${duration_str}${seconds}s"
+        # Format duration using existing function
+        if [ "$duration_seconds" -gt 0 ]; then
+            local duration_str=$(__cclog_format_duration $duration_seconds)
             printf "%-10s %s\n" "Duration:" "$duration_str"
         fi
     fi
@@ -181,7 +257,7 @@ cclog() {
         exit 1
     fi
 
-    session_id={4}
+    session_id={2}
     file=\"$claude_projects_dir/\${session_id}.jsonl\"
 
     # Check if functions are available
@@ -199,12 +275,12 @@ cclog() {
         --header-lines="1" \
         --header "Claude Code Sessions for: $(pwd)"$'\nEnter: Return session ID, Ctrl-v: View log\nCtrl-p: Return path, Ctrl-r: Resume conversation' \
         --delimiter=$'\t' \
-        --with-nth="1,2,3" \
+        --with-nth="1" \
         --preview "$preview_cmd" \
         --preview-window="down:60%:nowrap" \
         --height="100%" \
         --ansi \
-        --bind "ctrl-r:execute(claude -r {4})+abort" \
+        --bind "ctrl-r:execute(claude -r {2})+abort" \
         --expect="ctrl-v,ctrl-p")
 
     # Process result
@@ -213,7 +289,7 @@ cclog() {
         local selected=$(echo "$result" | tail -n +2)
 
         if [ -n "$selected" ]; then
-            local full_id=$(echo "$selected" | awk -F$'\t' '{print $4}')
+            local full_id=$(echo "$selected" | awk -F$'\t' '{print $2}')
 
             case "$key" in
             ctrl-v)
