@@ -6,8 +6,8 @@ cclog_view() {
     local file="$1"
 
     local color_reset=$'\033[0m'
-    local color_user=$'\033[36m'      # Cyan
-    local color_assistant=$'\033[37m' # White
+    local color_user=$'\033[36m'       # Cyan
+    local color_assistant=$'\033[37m'  # White
     local color_tool=$'\033[38;5;244m' # Medium Gray
 
     # JQ query for formatting chat logs with fixed width
@@ -73,30 +73,30 @@ EOF
 __cclog_generate_list() {
     local claude_projects_dir="$1"
     local session_list=$(printf "%-12s\t%-20s\t%-50s\tFULL_ID\n" "SESSION_ID" "TIMESTAMP" "FIRST_MESSAGE")
-    
+
     while IFS= read -r -d '' file; do
         local basename=$(basename "$file")
         local full_session_id="${basename%.jsonl}"
         local short_session_id="${full_session_id:0:8}"
-        
+
         # Get first timestamp and first user message
         local first_timestamp=$(jq -r 'select(.type == "user" or .type == "assistant") | .timestamp' "$file" 2>/dev/null | head -1)
         local first_user_msg=$(jq -r 'select(.type == "user" and (.message.content | type) == "string") | .message.content' "$file" 2>/dev/null | head -1)
-        
+
         if [ -n "$first_timestamp" ]; then
             # Format timestamp
             local formatted_time=$(echo "$first_timestamp" | sed 's/T/ /' | cut -d'.' -f1)
-            
+
             # Truncate message if needed
             local msg="${first_user_msg:-"no user message"}"
             [ ${#msg} -gt 50 ] && msg="${msg:0:50}..."
-            
+
             session_list+=$(printf "\n%-12s\t%-20s\t%-50s\t%s" "${short_session_id}" "${formatted_time}" "${msg}" "${full_session_id}")
         else
             session_list+=$(printf "\n%-12s\t%-20s\t%-50s\t%s" "${short_session_id}" "unknown" "no messages" "${full_session_id}")
         fi
     done < <(find "$claude_projects_dir" -maxdepth 1 -name "*.jsonl" -print0)
-    
+
     echo "$session_list"
 }
 
@@ -104,29 +104,29 @@ __cclog_generate_list() {
 cclog_info() {
     local file="$1"
     local session_id="$2"
-    
+
     printf "%-10s %s\n" "File:" "${session_id}.jsonl"
-    printf "%-10s %s\n" "Messages:" "$(wc -l < "$file" | tr -d " ")"
-    
+    printf "%-10s %s\n" "Messages:" "$(wc -l <"$file" | tr -d " ")"
+
     # Get start and end timestamps
     local start_time=$(jq -r 'select(.type == "user" or .type == "assistant") | .timestamp' "$file" 2>/dev/null | head -1)
     local end_time=$(jq -r 'select(.type == "user" or .type == "assistant") | .timestamp' "$file" 2>/dev/null | tail -1)
-    
+
     if [ -n "$start_time" ] && [ -n "$end_time" ]; then
         # Format start time
         local formatted_start=$(echo "$start_time" | sed 's/T/ /' | cut -d'.' -f1)
         printf "%-10s %s\n" "Started:" "$formatted_start"
-        
+
         # Calculate duration
         local start_epoch=$(date -j -f "%Y-%m-%d %H:%M:%S" "${formatted_start}" "+%s" 2>/dev/null || date -d "${formatted_start}" "+%s" 2>/dev/null)
         local end_epoch=$(date -j -f "%Y-%m-%dT%H:%M:%S" "${end_time%%.*}" "+%s" 2>/dev/null || date -d "${end_time}" "+%s" 2>/dev/null)
-        
+
         if [ -n "$start_epoch" ] && [ -n "$end_epoch" ]; then
             local duration=$((end_epoch - start_epoch))
             local hours=$((duration / 3600))
-            local minutes=$(( (duration % 3600) / 60 ))
+            local minutes=$(((duration % 3600) / 60))
             local seconds=$((duration % 60))
-            
+
             local duration_str=""
             [ $hours -gt 0 ] && duration_str="${hours}h "
             [ $minutes -gt 0 ] && duration_str="${duration_str}${minutes}m "
@@ -135,7 +135,6 @@ cclog_info() {
         fi
     fi
 }
-
 
 # Function to browse logs with fzf
 cclog_list() {
@@ -152,12 +151,13 @@ cclog_list() {
 
     # Get the full path to this script
     local script_path="${BASH_SOURCE[0]}"
-    
+
     # Generate session list
     local session_list=$(__cclog_generate_list "$claude_projects_dir")
-    
-    # Prepare preview command  
-    local preview_cmd=$(cat <<EOF
+
+    # Prepare preview command
+    local preview_cmd=$(
+        cat <<EOF
 bash -c '
     source "$script_path" >/dev/null 2>&1
     session_id={4}
@@ -167,8 +167,8 @@ bash -c '
     cclog_view "\$file"
 '
 EOF
-)
-    
+    )
+
     # Use fzf with formatted list
     local selected=$(echo "$session_list" | fzf \
         --header-lines=1 \
@@ -180,12 +180,12 @@ EOF
         --height=100% \
         --ansi \
         --bind "ctrl-r:execute(claude -r {4})+abort")
-    
+
     # Process selected session
     if [ -n "$selected" ]; then
         local full_id=$(echo "$selected" | awk -F$'\t' '{print $4}')
         local selected_file="$claude_projects_dir/${full_id}.jsonl"
-        
+
         # Display the log with viewer
         cclog_view "$selected_file" | ${PAGER:-less -R}
     fi

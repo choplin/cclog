@@ -23,13 +23,16 @@ sheldon lock --update
 
 ```bash
 git clone https://github.com/choplin/cclog.git
-chmod +x cclog/cclog
 ```
 
 Add to your shell configuration:
 
 ```bash
-source /path/to/cclog/cclog
+# For bash/zsh
+source /path/to/cclog/cclog.sh
+
+# For zsh with plugin managers (oh-my-zsh, etc)
+# The cclog.plugin.zsh will be loaded automatically
 ```
 
 ## Usage
