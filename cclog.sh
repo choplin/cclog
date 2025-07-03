@@ -150,7 +150,11 @@ cclog_list() {
     fi
 
     # Get the full path to this script
-    local script_path="${BASH_SOURCE[0]}"
+    local script_path="${BASH_SOURCE[0]:-$0}"
+    # Resolve to absolute path
+    if [[ ! "$script_path" =~ ^/ ]]; then
+        script_path="$(cd "$(dirname "$script_path")" && pwd)/$(basename "$script_path")"
+    fi
 
     # Generate session list
     local session_list=$(__cclog_generate_list "$claude_projects_dir")
