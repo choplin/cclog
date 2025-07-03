@@ -213,7 +213,11 @@ cclog() {
         local selected_file="$claude_projects_dir/${full_id}.jsonl"
 
         # Display the log with viewer
-        cclog_view "$selected_file" | ${PAGER:-less -R}
+        if [ -n "$PAGER" ]; then
+            cclog_view "$selected_file" | $PAGER
+        else
+            cclog_view "$selected_file" | less -R
+        fi
     fi
 }
 
