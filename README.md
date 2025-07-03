@@ -2,6 +2,8 @@
 
 Browse and view Claude Code session logs using fzf.
 
+https://github.com/user-attachments/assets/5019c393-8082-4cbc-b2b5-ec0549585681
+
 ## Installation
 
 ### Using Sheldon (Recommended)
