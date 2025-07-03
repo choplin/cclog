@@ -84,7 +84,7 @@ EOF
 # Function to generate session list (internal)
 __cclog_generate_list() {
     local claude_projects_dir="$1"
-    local session_list=$(printf "%-12s\t%-20s\t%-50s\tFULL_ID\n" "SESSION_ID" "TIMESTAMP" "FIRST_MESSAGE")
+    local session_list=$(printf "%-12s\t%-20s\t%s\tFULL_ID\n" "SESSION_ID" "TIMESTAMP" "FIRST_MESSAGE")
 
     while IFS= read -r -d '' file; do
         local basename=$(basename "$file")
@@ -99,13 +99,12 @@ __cclog_generate_list() {
             # Format timestamp
             local formatted_time=$(echo "$first_timestamp" | sed 's/T/ /' | cut -d'.' -f1)
 
-            # Truncate message if needed
+            # Use full message without truncation
             local msg="${first_user_msg:-"no user message"}"
-            [ ${#msg} -gt 50 ] && msg="${msg:0:50}..."
 
-            session_list+=$(printf "\n%-12s\t%-20s\t%-50s\t%s" "${short_session_id}" "${formatted_time}" "${msg}" "${full_session_id}")
+            session_list+=$(printf "\n%-12s\t%-20s\t%s\t%s" "${short_session_id}" "${formatted_time}" "${msg}" "${full_session_id}")
         else
-            session_list+=$(printf "\n%-12s\t%-20s\t%-50s\t%s" "${short_session_id}" "unknown" "no messages" "${full_session_id}")
+            session_list+=$(printf "\n%-12s\t%-20s\t%s\t%s" "${short_session_id}" "unknown" "no messages" "${full_session_id}")
         fi
     done < <(find "$claude_projects_dir" -maxdepth 1 -name "*.jsonl" -print0)
 
