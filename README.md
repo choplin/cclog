@@ -103,7 +103,9 @@ cclog
 
 **Key bindings:**
 
-- `Enter`: View the full log in your pager (using `cclog_view`)
+- `Enter`: Return the session ID
+- `Ctrl-V`: View the full log in your pager
+- `Ctrl-P`: Return the file path
 - `Ctrl-R`: Resume the conversation with `claude -r`
 
 ### View a specific log file
