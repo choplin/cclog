@@ -4,9 +4,7 @@ Browse and view Claude Code session logs using fzf.
 
 ## Installation
 
-### Using Plugin Managers
-
-#### Sheldon
+### Using Sheldon (Recommended)
 
 Add to your `~/.config/sheldon/plugins.toml`:
 
@@ -20,6 +18,29 @@ Then run:
 ```bash
 sheldon lock --update
 ```
+
+### Manual Installation (bash/zsh)
+
+Works with both bash and zsh:
+
+```bash
+git clone https://github.com/choplin/cclog.git
+```
+
+Add to your shell configuration:
+
+```bash
+# For bash/zsh
+source /path/to/cclog/cclog.sh
+
+# For zsh with plugin managers (oh-my-zsh, etc)
+# The cclog.plugin.zsh will be loaded automatically
+```
+
+<details>
+<summary>Other Plugin Managers</summary>
+
+> **Note:** These methods haven't been tested but should work thanks to the standard `.plugin.zsh` file structure. Please open an issue if you encounter any problems!
 
 #### Oh-My-Zsh
 
@@ -63,21 +84,7 @@ zgen load choplin/cclog
 antibody bundle choplin/cclog
 ```
 
-### Manual Installation
-
-```bash
-git clone https://github.com/choplin/cclog.git
-```
-
-Add to your shell configuration:
-
-```bash
-# For bash/zsh
-source /path/to/cclog/cclog.sh
-
-# For zsh with plugin managers (oh-my-zsh, etc)
-# The cclog.plugin.zsh will be loaded automatically
-```
+</details>
 
 ## Usage
 
