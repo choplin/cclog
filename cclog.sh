@@ -10,6 +10,11 @@ fi
 
 # Function to format Claude Code chat logs with colors
 cclog_view() {
+    if [ $# -eq 0 ]; then
+        echo "Error: cclog_view requires a file argument" >&2
+        return 1
+    fi
+
     local file="$1"
 
     local color_reset=$'\033[0m'
@@ -20,25 +25,25 @@ cclog_view() {
     # JQ query for formatting chat logs with fixed width
     read -r -d '' jq_query <<'EOF'
     select(.type == "user" or .type == "assistant") |
-    
+
     # Check if this is a tool message
     (if .type == "user" and (.message.content | type) == "array" and .message.content[0].type == "tool_result" then true
      elif .type == "assistant" and (.message.content | type) == "array" and .message.content[0].type == "tool_use" then true
      else false end) as $is_tool |
-    
+
     # Choose color for entire line
     (if $is_tool then $tool_color
      elif .type == "user" then $user_color
      else $assistant_color end) as $line_color |
-    
+
     $line_color +
-    
+
     # Type label with padding (10 chars)
     (if .type == "user" then "User" + (" " * 6) else "Assistant" + " " end) +
-    
+
     # Timestamp
     (.timestamp | sub("\\.[0-9]+Z$"; "Z") | strptime("%Y-%m-%dT%H:%M:%SZ") | strftime("%H:%M:%S")) + "  " +
-    
+
     # Message content
     (
       if .type == "user" then
@@ -65,7 +70,7 @@ cclog_view() {
         ""
       end
     ) | gsub("\n"; " ") +
-    
+
     $reset
 EOF
 
@@ -109,8 +114,13 @@ __cclog_generate_list() {
 
 # Function to show session info
 cclog_info() {
+    if [ $# -eq 0 ]; then
+        echo "Error: cclog_info requires a file argument" >&2
+        return 1
+    fi
+
     local file="$1"
-    local session_id="$2"
+    local session_id=$(basename "$file" .jsonl)
 
     printf "%-10s %s\n" "File:" "${session_id}.jsonl"
     printf "%-10s %s\n" "Messages:" "$(wc -l <"$file" | tr -d " ")"
@@ -144,7 +154,7 @@ cclog_info() {
 }
 
 # Function to browse logs with fzf
-cclog_list() {
+cclog() {
     # Convert "/" to "-" for project directory name
     local project_dir=$(pwd | sed 's/\//-/g')
 
@@ -177,7 +187,7 @@ cclog_list() {
 
     # Check if functions are available
     if type cclog_info >/dev/null 2>&1; then
-        cclog_info \"\$file\" \"\$session_id\"
+        cclog_info \"\$file\"
         echo
         cclog_view \"\$file\"
     else
@@ -209,5 +219,5 @@ cclog_list() {
 
 # Execute the function if script is run directly
 if [ "${BASH_SOURCE[0]}" = "${0}" ]; then
-    cclog_list
+    cclog
 fi
