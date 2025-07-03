@@ -150,10 +150,11 @@ __cclog_get_session_stats() {
 __cclog_generate_list() {
     local claude_projects_dir="$1"
 
-    # Temporary file to collect session data
-    local temp_file=$(mktemp)
+    # Generate formatted output header
+    printf "%-19s %-8s %-8s  %s\n" "TIMESTAMP" "Duration" "Messages" "FIRST_MESSAGE"
 
-    while IFS= read -r -d '' file; do
+    # Get files sorted by modification time (newest first) and process them in order
+    while IFS= read -r file; do
         local basename=$(basename "$file")
         local full_session_id="${basename%.jsonl}"
 
@@ -179,23 +180,10 @@ __cclog_generate_list() {
             # Format timestamp as "YYYY-MM-DD HH:MM:SS"
             local formatted_time=$(echo "$start_time" | sed 's/T/ /' | cut -d'.' -f1)
 
-            # Get timestamp for sorting
-            local timestamp_epoch=$(date -j -f "%Y-%m-%dT%H:%M:%S" "${start_time%%.*}" "+%s" 2>/dev/null || date -d "${start_time}" "+%s" 2>/dev/null)
-
-            # Store session info with epoch timestamp for sorting
-            echo "${timestamp_epoch:-0}|$formatted_time|$duration|$msg_count|$summary|$full_session_id" >>"$temp_file"
+            # Print immediately - no buffering
+            printf "%-19s %8s %8d  %s\t%s\n" "$formatted_time" "$duration" "$msg_count" "$summary" "$full_session_id"
         fi
-    done < <(find "$claude_projects_dir" -maxdepth 1 -name "*.jsonl" -print0)
-
-    # Generate formatted output
-    printf "%-19s %-8s %-8s  %s\n" "TIMESTAMP" "Duration" "Messages" "FIRST_MESSAGE"
-
-    # Sort by timestamp (newest first) and display
-    while IFS='|' read -r timestamp_epoch formatted_time duration msg_count summary full_id; do
-        printf "%-19s %8s %8d  %s\t%s\n" "$formatted_time" "$duration" "$msg_count" "$summary" "$full_id"
-    done < <(sort -t'|' -k1,1 -rn "$temp_file")
-
-    rm -f "$temp_file"
+    done < <(ls -t "$claude_projects_dir"/*.jsonl 2>/dev/null)
 }
 
 # Function to show session info
@@ -244,9 +232,6 @@ cclog() {
     # Use the script path set at the top level
     local script_path="$CCLOG_SCRIPT_PATH"
 
-    # Generate session list
-    local session_list=$(__cclog_generate_list "$claude_projects_dir")
-
     # Prepare preview command - properly escape script path
     local preview_cmd="bash -c '
     # Source the script
@@ -270,8 +255,8 @@ cclog() {
     fi
 '"
 
-    # Use fzf with formatted list
-    local result=$(echo "$session_list" | fzf \
+    # Use fzf with formatted list - stream directly from function
+    local result=$(__cclog_generate_list "$claude_projects_dir" | fzf \
         --header-lines="1" \
         --header "Claude Code Sessions for: $(pwd)"$'\nEnter: Return session ID, Ctrl-v: View log\nCtrl-p: Return path, Ctrl-r: Resume conversation' \
         --delimiter=$'\t' \
