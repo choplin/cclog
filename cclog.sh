@@ -155,8 +155,8 @@ cclog_info() {
 
 # Function to browse logs with fzf
 cclog() {
-    # Convert "/" to "-" for project directory name
-    local project_dir=$(pwd | sed 's/\//-/g')
+    # Convert "/" to "-" and "." to "-" for project directory name
+    local project_dir=$(pwd | sed 's/\//-/g; s/\./-/g')
 
     local claude_projects_dir="$HOME/.claude/projects/$project_dir"
 
