@@ -123,7 +123,7 @@ cclog_info ~/.claude/projects/*/session-id.jsonl
 ## Requirements
 
 - `fzf` - Fuzzy finder
-- `jq` - JSON processor
+- `python3` - Python 3.x (for performance optimization)
 - `claude` - Claude Code CLI (for resume functionality)
 
 ## Features
@@ -132,6 +132,9 @@ cclog_info ~/.claude/projects/*/session-id.jsonl
 - Session information display (file, messages count, start time, duration)
 - Interactive browsing with fzf
 - Resume conversations directly from the browser
+- Performance optimized with Python helper script for large conversation histories
+- Stream-based processing for efficient memory usage
+- Duration and message count columns in the conversation list
 
 ## License
 

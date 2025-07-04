@@ -7,9 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2025-07-04
+
+### Added
+
+- Python helper script for improved performance
+- Duration and Messages columns to conversation list
+
 ### Changed
 
-- Added Duration and Messages columns to conversation list
+- Stream output directly to fzf for faster initial display
 
 ## [0.1.0] - 2025-07-03
 
