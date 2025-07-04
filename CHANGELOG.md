@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Fixed parsing of user messages when content is an array of objects (Claude Code format)
+
 ## [0.2.0] - 2025-07-04
 
 ### Added

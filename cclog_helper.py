@@ -85,6 +85,13 @@ def extract_user_message(data: dict) -> str:
         content = data.get("message", {}).get("content")
         if isinstance(content, str):
             return content
+        elif isinstance(content, list):
+            # Handle array of content objects
+            for item in content:
+                if isinstance(item, dict) and item.get("type") == "text":
+                    text = item.get("text", "")
+                    if text:
+                        return text
     return ""
 
 
