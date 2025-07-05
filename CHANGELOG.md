@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Fixed parsing of user messages when content is an array of objects (Claude Code format)
+- Fixed intermittent issue where both full line and session ID were printed
+- Fixed session ID extraction when messages contain tabs or newlines by using Unit Separator (0x1F) as delimiter
 
 ## [0.2.0] - 2025-07-04
 

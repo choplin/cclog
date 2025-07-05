@@ -247,8 +247,9 @@ def get_session_list(project_dir):
             if len(formatted_msg) > available_for_message:
                 formatted_msg = formatted_msg[: available_for_message - 3] + "..."
 
+            # Use Unit Separator (0x1F) as delimiter - non-printable ASCII character
             print(
-                f"{summary.formatted_time:<19} {summary.formatted_duration:>8} {summary.line_count:>8}  {formatted_msg}\t{summary.session_id}"
+                f"{summary.formatted_time:<19} {summary.formatted_duration:>8} {summary.line_count:>8}  {formatted_msg}\x1f{summary.session_id}"
             )
 
 

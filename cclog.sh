@@ -124,9 +124,10 @@ cclog() {
     local preview_cmd="$CCLOG_PYTHON $CCLOG_HELPER_SCRIPT info '$claude_projects_dir/{-1}.jsonl' && echo && $CCLOG_PYTHON $CCLOG_HELPER_SCRIPT view '$claude_projects_dir/{-1}.jsonl'"
 
     # Use fzf with formatted list - stream directly from function
+    # Use Unit Separator (0x1F) as delimiter
     local result=$(__cclog_generate_list "$claude_projects_dir" | fzf \
         --header-lines=4 \
-        --delimiter=$'\t' \
+        --delimiter=$'\x1f' \
         --with-nth="1" \
         --preview "$preview_cmd" \
         --preview-window="down:60%:nowrap" \
@@ -138,10 +139,12 @@ cclog() {
     # Process result
     if [ -n "$result" ]; then
         local key=$(echo "$result" | head -1)
+        # Get everything after first line, but treat it as one selection
         local selected=$(echo "$result" | tail -n +2)
 
         if [ -n "$selected" ]; then
-            local full_id=$(echo "$selected" | awk -F$'\t' '{print $NF}')
+            # Extract session ID using Unit Separator delimiter
+            local full_id=$(printf "%s" "$selected" | awk -F$'\x1f' 'END {print $NF}' | tr -d '\n')
 
             case "$key" in
             ctrl-v)
@@ -155,11 +158,11 @@ cclog() {
                 ;;
             ctrl-p)
                 # Return file path
-                echo "$claude_projects_dir/${full_id}.jsonl"
+                printf "%s\n" "$claude_projects_dir/${full_id}.jsonl"
                 ;;
             *)
                 # Default: return session ID
-                echo "$full_id"
+                printf "%s\n" "$full_id"
                 ;;
             esac
         fi
