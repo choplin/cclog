@@ -1,0 +1,4 @@
+{"type":"user","timestamp":"2025-01-05T10:00:00.000Z","message":{"role":"user","content":"What is Python?"}}
+{"type":"assistant","timestamp":"2025-01-05T10:00:05.000Z","message":{"role":"assistant","content":"Python is a high-level programming language."}}
+{"type":"user","timestamp":"2025-01-05T10:00:30.000Z","message":{"role":"user","content":"Show me an example"}}
+{"type":"assistant","timestamp":"2025-01-05T10:00:35.000Z","message":{"role":"assistant","content":"Here's a simple example:\n\n```python\nprint('Hello, World!')\n```"}}

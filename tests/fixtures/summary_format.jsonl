@@ -1,0 +1,5 @@
+{"type":"summary","summary":"Python Discussion","leafUuid":"12345678-abcd-efgh-ijkl-123456789012"}
+{"type":"user","timestamp":"2025-01-05T11:00:00.000Z","message":{"role":"user","content":"Help me understand decorators in Python"}}
+{"type":"assistant","timestamp":"2025-01-05T11:00:10.000Z","message":{"role":"assistant","content":"Decorators are a way to modify functions..."}}
+{"type":"user","timestamp":"2025-01-05T11:01:00.000Z","message":{"role":"user","content":"Can you show an example?"}}
+{"type":"assistant","timestamp":"2025-01-05T11:01:15.000Z","message":{"role":"assistant","content":"Sure! Here's a simple decorator example."}}

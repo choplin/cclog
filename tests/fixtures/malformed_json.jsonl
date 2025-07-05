@@ -1,0 +1,3 @@
+{"type":"user","timestamp":"2025-01-05T13:00:00.000Z"
+this is not valid JSON
+{"type":"assistant","timestamp":"2025-01-05T13:00:10.000Z","message":{"role":"assistant","content":"This line is valid"}}

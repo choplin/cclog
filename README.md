@@ -5,6 +5,7 @@ Browse and view Claude Code session logs using fzf.
 https://github.com/user-attachments/assets/5019c393-8082-4cbc-b2b5-ec0549585681
 
 The demo shows:
+
 1. Opening the session list with `cclog`
 2. Navigating through sessions with real-time preview
 3. Resuming a Claude Code session with `Ctrl-R`
@@ -135,6 +136,20 @@ cclog_info ~/.claude/projects/*/session-id.jsonl
 - Performance optimized with Python helper script for large conversation histories
 - Stream-based processing for efficient memory usage
 - Duration and message count columns in the conversation list
+
+## Testing
+
+Run the test suite:
+
+```bash
+./run_tests.sh
+```
+
+Or manually with pytest:
+
+```bash
+pytest tests/ -v
+```
 
 ## License
 

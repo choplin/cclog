@@ -1,0 +1,4 @@
+{"type":"user","timestamp":"2025-01-05T12:00:00.000Z","message":{"role":"user","content":[{"type":"text","text":"Explain async/await in JavaScript"}]}}
+{"type":"assistant","timestamp":"2025-01-05T12:00:08.000Z","message":{"role":"assistant","content":[{"type":"text","text":"Async/await is a modern way to handle asynchronous operations..."}]}}
+{"type":"assistant","timestamp":"2025-01-05T12:00:20.000Z","message":{"role":"assistant","content":[{"type":"tool_use","id":"tool_123","name":"Bash","input":{"command":"node --version"}}]}}
+{"type":"user","timestamp":"2025-01-05T12:00:25.000Z","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"tool_123","output":"v20.11.0"}]}}

@@ -1,0 +1,2 @@
+{"type":"user","message":{"role":"user","content":"Where is the timestamp?"}}
+{"type":"assistant","message":{"role":"assistant","content":"No timestamps in this file"}}

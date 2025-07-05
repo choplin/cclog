@@ -16,8 +16,13 @@
 
 # Test files
 test/
-tests/
 *.test.*
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
 
 # Temporary files
 *.tmp

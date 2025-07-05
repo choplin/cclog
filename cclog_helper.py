@@ -107,7 +107,7 @@ def extract_timestamp(data: dict) -> Optional[datetime]:
 def parse_session_minimal(file_path: Path) -> Optional[SessionSummary]:
     """
     Parse session file efficiently
-    - Parse first line for timestamp
+    - Find first line with timestamp
     - Parse first 20 lines to find user message
     - Count all lines
     - Keep last line to parse for timestamp
@@ -131,25 +131,25 @@ def parse_session_minimal(file_path: Path) -> Optional[SessionSummary]:
                 # Keep track of last non-empty line
                 last_line = stripped_line
 
-                # Parse first line for timestamp
-                if line_num == 1:
-                    try:
-                        data = json.loads(stripped_line)
-                        start_timestamp = extract_timestamp(data)
-                        if not start_timestamp:
-                            return None
-                        # Check if first line is also a user message
-                        first_user_msg = extract_user_message(data)
-                    except json.JSONDecodeError:
-                        return None  # First line must be valid JSON
+                # Try to parse JSON from this line
+                try:
+                    data = json.loads(stripped_line)
 
-                # Parse lines 2-20 looking for first user message
-                elif line_num <= 20 and not first_user_msg:
-                    try:
-                        data = json.loads(stripped_line)
-                        first_user_msg = extract_user_message(data)
-                    except json.JSONDecodeError:
-                        continue
+                    # Look for first timestamp
+                    if not start_timestamp:
+                        ts = extract_timestamp(data)
+                        if ts:
+                            start_timestamp = ts
+
+                    # Look for first user message (within first 20 lines)
+                    if line_num <= 20 and not first_user_msg:
+                        msg = extract_user_message(data)
+                        if msg:
+                            first_user_msg = msg
+
+                except json.JSONDecodeError:
+                    # Skip lines that aren't valid JSON
+                    continue
 
         if not start_timestamp:
             return None
