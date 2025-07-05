@@ -73,7 +73,16 @@ __cclog_generate_list() {
 
     # Use Python helper if available
     if [ -f "$CCLOG_HELPER_SCRIPT" ] && [ -n "$CCLOG_PYTHON" ]; then
-        "$CCLOG_PYTHON" "$CCLOG_HELPER_SCRIPT" list "$claude_projects_dir"
+        # Pass terminal columns to the helper
+        # Try multiple methods to get terminal width:
+        # 1. Use existing COLUMNS if set
+        # 2. Try tput cols
+        # 3. Try stty size
+        # 4. Default to 80
+        if [ -z "$COLUMNS" ]; then
+            COLUMNS=$(tput cols 2>/dev/null || stty size 2>/dev/null | cut -d' ' -f2 || echo 80)
+        fi
+        COLUMNS="$COLUMNS" "$CCLOG_PYTHON" "$CCLOG_HELPER_SCRIPT" list "$claude_projects_dir"
     else
         echo "Error: Python 3 is required for cclog" >&2
         return 1

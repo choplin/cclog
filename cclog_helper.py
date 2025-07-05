@@ -4,6 +4,7 @@ Helper script for cclog to handle performance-critical operations
 """
 
 import json
+import os
 import sys
 from pathlib import Path
 from datetime import datetime
@@ -187,6 +188,25 @@ def format_summary(first_user_msg):
     return first_user_msg.replace("\n", "\\n").replace("\r", "\\r")
 
 
+def get_terminal_width():
+    """Get terminal width, with fallback to 80"""
+    # Check COLUMNS environment variable first (for testing and some terminals)
+    columns_env = os.environ.get("COLUMNS")
+    if columns_env:
+        try:
+            return int(columns_env)  # Use exact value from environment
+        except ValueError:
+            pass
+
+    try:
+        # Try to get terminal size
+        columns = os.get_terminal_size().columns
+        return columns
+    except (OSError, AttributeError):
+        # Fallback if not in a terminal
+        return 80
+
+
 def get_session_list(project_dir):
     """Generate list of sessions for fzf - streaming output for fast first results"""
     # Get all session files with their modification times (fast)
@@ -207,12 +227,28 @@ def get_session_list(project_dir):
     print("Ctrl-p: Return path, Ctrl-r: Resume conversation")
     print("TIMESTAMP           Duration Messages  FIRST_MESSAGE")
 
+    # Get terminal width for proper truncation
+    terminal_width = get_terminal_width()
+
+    # Calculate available width for message
+    # Since fzf uses --with-nth="1", only the first field (before tab) is displayed
+    # So we only need to fit the visible part in the terminal
+    fixed_width = 41  # TIMESTAMP(19) + Duration(8) + Messages(8) + spacing(6)
+    available_for_message = max(
+        terminal_width - fixed_width - 2, 20
+    )  # -2 for small margin
+
     # Parse and print each file one by one (streaming output)
     for file_path, _ in files_with_mtime:
         summary = parse_session_minimal(file_path)
         if summary:
+            # Truncate message to fit terminal width
+            formatted_msg = summary.formatted_summary
+            if len(formatted_msg) > available_for_message:
+                formatted_msg = formatted_msg[: available_for_message - 3] + "..."
+
             print(
-                f"{summary.formatted_time:<19} {summary.formatted_duration:>8} {summary.line_count:>8}  {summary.formatted_summary}\t{summary.session_id}"
+                f"{summary.formatted_time:<19} {summary.formatted_duration:>8} {summary.line_count:>8}  {formatted_msg}\t{summary.session_id}"
             )
 
 
@@ -227,7 +263,9 @@ def get_session_info(file_path):
     print(f"{'Messages:':<10} {summary.line_count}")
     print(f"{'Started:':<10} {summary.formatted_time}")
     if summary.last_timestamp and summary.last_timestamp != summary.start_timestamp:
-        print(f"{'Finished:':<10} {summary.last_timestamp.strftime('%Y-%m-%d %H:%M:%S')}")
+        print(
+            f"{'Finished:':<10} {summary.last_timestamp.strftime('%Y-%m-%d %H:%M:%S')}"
+        )
     if summary.duration_seconds > 0:
         print(f"{'Duration:':<10} {summary.formatted_duration}")
 
