@@ -10,6 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Modified time column showing relative time (e.g., "6m ago") in conversation list
+- Terminal width detection and automatic line truncation to prevent horizontal scrolling in fzf
+- Comprehensive test suite with fixtures for various session file formats
+- Test runner script (run_tests.sh)
 
 ### Changed
 
@@ -18,6 +21,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Fixed parsing of session files with summary format (now correctly shows all sessions)
+- Fixed parse_session_minimal to find first timestamp regardless of position in the file
 - Fixed parsing of user messages when content is an array of objects (Claude Code format)
 - Fixed intermittent issue where both full line and session ID were printed
 - Fixed session ID extraction when messages contain tabs or newlines by using Unit Separator (0x1F) as delimiter
