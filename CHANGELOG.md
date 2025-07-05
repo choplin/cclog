@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Modified time column showing relative time (e.g., "6m ago") in conversation list
+
+### Changed
+
+- Renamed TIMESTAMP column to CREATED and made all column headers uppercase for consistency
+- Reordered columns to group time-related information (CREATED, MODIFIED) together
+
 ### Fixed
 
 - Fixed parsing of user messages when content is an array of objects (Claude Code format)

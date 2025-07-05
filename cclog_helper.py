@@ -6,6 +6,7 @@ Helper script for cclog to handle performance-critical operations
 import json
 import os
 import sys
+import time
 from pathlib import Path
 from datetime import datetime
 from dataclasses import dataclass
@@ -48,6 +49,11 @@ class SessionSummary:
     def formatted_summary(self) -> str:
         """Format first user message for display"""
         return format_summary(self.first_user_message)
+    
+    @property
+    def formatted_modified(self) -> str:
+        """Format modification time as relative time"""
+        return format_relative_time(self.modification_time)
 
 
 def format_duration(seconds):
@@ -68,6 +74,29 @@ def format_duration(seconds):
         if hours > 0:
             return f"{days}d {hours}h"
         return f"{days}d"
+
+
+def format_relative_time(modification_time: float) -> str:
+    """Format modification time as relative time (e.g., '6m ago')"""
+    current_time = time.time()
+    diff = int(current_time - modification_time)
+    
+    if diff < 60:
+        return f"{diff}s ago"
+    elif diff < 3600:
+        return f"{diff // 60}m ago"
+    elif diff < 86400:
+        hours = diff // 3600
+        return f"{hours}h ago"
+    elif diff < 604800:  # 7 days
+        days = diff // 86400
+        return f"{days}d ago"
+    elif diff < 2592000:  # 30 days
+        weeks = diff // 604800
+        return f"{weeks}w ago"
+    else:
+        months = diff // 2592000
+        return f"{months}mo ago"
 
 
 def parse_timestamp(timestamp_str: str) -> Optional[datetime]:
@@ -225,7 +254,7 @@ def get_session_list(project_dir):
     print(f"Claude Code Sessions for: {Path.cwd()}")
     print("Enter: Return session ID, Ctrl-v: View log")
     print("Ctrl-p: Return path, Ctrl-r: Resume conversation")
-    print("TIMESTAMP           Duration Messages  FIRST_MESSAGE")
+    print("CREATED             MODIFIED DURATION MESSAGES  FIRST_MESSAGE")
 
     # Get terminal width for proper truncation
     terminal_width = get_terminal_width()
@@ -233,7 +262,7 @@ def get_session_list(project_dir):
     # Calculate available width for message
     # Since fzf uses --with-nth="1", only the first field (before tab) is displayed
     # So we only need to fit the visible part in the terminal
-    fixed_width = 41  # TIMESTAMP(19) + Duration(8) + Messages(8) + spacing(6)
+    fixed_width = 51  # TIMESTAMP(19) + Duration(8) + Messages(8) + Modified(8) + spacing(8)
     available_for_message = max(
         terminal_width - fixed_width - 2, 20
     )  # -2 for small margin
@@ -249,7 +278,7 @@ def get_session_list(project_dir):
 
             # Use Unit Separator (0x1F) as delimiter - non-printable ASCII character
             print(
-                f"{summary.formatted_time:<19} {summary.formatted_duration:>8} {summary.line_count:>8}  {formatted_msg}\x1f{summary.session_id}"
+                f"{summary.formatted_time:<19} {summary.formatted_modified:>8} {summary.formatted_duration:>8} {summary.line_count:>8}  {formatted_msg}\x1f{summary.session_id}"
             )
 
 
