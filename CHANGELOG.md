@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Summary indexing to display conversation topics in list view
+  - Shows first matched topic with 📑 prefix in conversation list
+  - Displays up to 5 topics in detailed info view
+  - Performance optimized to only read small files (<10KB)
+- Comprehensive documentation of Claude Projects JSONL file format
+
 ## [0.3.0] - 2025-07-05
 
 ### Added

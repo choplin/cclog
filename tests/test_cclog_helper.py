@@ -16,6 +16,7 @@ from cclog_helper import (
     format_duration,
     parse_timestamp,
     SessionSummary,
+    build_summary_index,
 )
 
 
@@ -207,6 +208,194 @@ class TestSessionSummary:
         assert summary.formatted_time == "2025-01-05 10:00:00"
         assert summary.formatted_duration == "1h 30m"
         assert summary.formatted_summary == "Test message\\nwith newline"
+
+    def test_session_summary_with_summaries(self):
+        """Test SessionSummary with matched summaries"""
+        summary = SessionSummary(
+            session_id="test-456",
+            file_path=Path("test.jsonl"),
+            start_timestamp=datetime.fromisoformat("2025-01-05T10:00:00+00:00"),
+            first_user_message="Test",
+            modification_time=1234567890.0,
+            file_size=1024,
+            matched_summaries=["Topic 1", "Topic 2", "Topic 3"],
+        )
+
+        assert summary.matched_summaries == ["Topic 1", "Topic 2", "Topic 3"]
+        assert summary.matched_summaries is not None
+        assert len(summary.matched_summaries) == 3
+
+
+class TestSummaryIndexing:
+    """Tests for summary indexing functionality"""
+
+    def test_build_summary_index_empty_dir(self, tmp_path):
+        """Test building summary index from empty directory"""
+        index = build_summary_index(str(tmp_path))
+        assert index == {}
+
+    def test_build_summary_index_no_summaries(self, tmp_path):
+        """Test building summary index with no summary files"""
+        # Create a large conversation file (should be skipped)
+        conv_file = tmp_path / "conversation.jsonl"
+        with open(conv_file, "w") as f:
+            for i in range(100):
+                f.write('{"type":"user","timestamp":"2025-01-01T00:00:00Z"}\n')
+
+        index = build_summary_index(str(tmp_path))
+        assert index == {}
+
+    def test_build_summary_index_with_summaries(self, tmp_path):
+        """Test building summary index with summary files"""
+        # Create a summary file
+        summary_file = tmp_path / "summaries.jsonl"
+        with open(summary_file, "w") as f:
+            f.write('{"type":"summary","summary":"Topic 1","leafUuid":"uuid-1"}\n')
+            f.write('{"type":"summary","summary":"Topic 2","leafUuid":"uuid-2"}\n')
+            f.write('{"type":"other","summary":"Not a summary"}\n')  # Should be ignored
+            f.write('{"type":"summary","leafUuid":"uuid-3"}\n')  # No summary text
+
+        index = build_summary_index(str(tmp_path))
+        assert len(index) == 2
+        assert index["uuid-1"] == "Topic 1"
+        assert index["uuid-2"] == "Topic 2"
+        assert "uuid-3" not in index  # No summary text
+
+    def test_build_summary_index_mixed_files(self, tmp_path):
+        """Test building summary index with mixed content files"""
+        # Create a mixed file (summary + conversation)
+        mixed_file = tmp_path / "mixed.jsonl"
+        with open(mixed_file, "w") as f:
+            f.write(
+                '{"type":"summary","summary":"Mixed Topic","leafUuid":"uuid-mix"}\n'
+            )
+            f.write('{"type":"user","timestamp":"2025-01-01T00:00:00Z"}\n')
+            f.write('{"type":"assistant","timestamp":"2025-01-01T00:00:01Z"}\n')
+
+        index = build_summary_index(str(tmp_path))
+        assert index["uuid-mix"] == "Mixed Topic"
+
+    def test_build_summary_index_malformed_json(self, tmp_path):
+        """Test building summary index with malformed JSON"""
+        bad_file = tmp_path / "bad.jsonl"
+        with open(bad_file, "w") as f:
+            f.write('{"type":"summary","summary":"Valid","leafUuid":"uuid-valid"}\n')
+            f.write("not valid json\n")
+            f.write('{"type":"summary"  # incomplete json\n')
+            f.write(
+                '{"type":"summary","summary":"Also Valid","leafUuid":"uuid-valid2"}\n'
+            )
+
+        index = build_summary_index(str(tmp_path))
+        assert len(index) == 2
+        assert index["uuid-valid"] == "Valid"
+        assert index["uuid-valid2"] == "Also Valid"
+
+    def test_parse_session_with_summaries(self, tmp_path):
+        """Test parsing session with summary matching"""
+        # Create summary file
+        summary_file = tmp_path / "summaries.jsonl"
+        with open(summary_file, "w") as f:
+            f.write(
+                '{"type":"summary","summary":"Feature Implementation","leafUuid":"asst-123"}\n'
+            )
+            f.write(
+                '{"type":"summary","summary":"Bug Fix Discussion","leafUuid":"asst-456"}\n'
+            )
+
+        # Create conversation file
+        conv_file = tmp_path / "conversation.jsonl"
+        with open(conv_file, "w") as f:
+            f.write(
+                '{"type":"user","uuid":"user-1","timestamp":"2025-01-01T10:00:00Z","message":{"content":"Help me"}}\n'
+            )
+            f.write(
+                '{"type":"assistant","uuid":"asst-123","timestamp":"2025-01-01T10:00:05Z"}\n'
+            )
+            f.write(
+                '{"type":"assistant","uuid":"asst-789","timestamp":"2025-01-01T10:00:10Z"}\n'
+            )
+            f.write(
+                '{"type":"assistant","uuid":"asst-456","timestamp":"2025-01-01T10:00:15Z"}\n'
+            )
+
+        # Build index and parse
+        index = build_summary_index(str(tmp_path))
+        summary = parse_session_minimal(conv_file, index)
+
+        assert summary is not None
+        assert summary.matched_summaries == [
+            "Feature Implementation",
+            "Bug Fix Discussion",
+        ]
+        assert summary.first_user_message == "Help me"
+
+    def test_parse_session_no_summaries(self, tmp_path):
+        """Test parsing session without summary index"""
+        conv_file = tmp_path / "conversation.jsonl"
+        with open(conv_file, "w") as f:
+            f.write(
+                '{"type":"user","timestamp":"2025-01-01T10:00:00Z","message":{"content":"Test"}}\n'
+            )
+            f.write(
+                '{"type":"assistant","uuid":"asst-123","timestamp":"2025-01-01T10:00:05Z"}\n'
+            )
+
+        # Parse without index
+        summary = parse_session_minimal(conv_file, None)
+        assert summary is not None
+        assert summary.matched_summaries is None
+
+        # Parse with empty index
+        summary = parse_session_minimal(conv_file, {})
+        assert summary is not None
+        assert summary.matched_summaries is None
+
+    def test_parse_session_duplicate_uuids(self, tmp_path):
+        """Test parsing session with duplicate assistant UUIDs"""
+        conv_file = tmp_path / "conversation.jsonl"
+        with open(conv_file, "w") as f:
+            f.write(
+                '{"type":"user","timestamp":"2025-01-01T10:00:00Z","message":{"content":"Test"}}\n'
+            )
+            f.write(
+                '{"type":"assistant","uuid":"asst-123","timestamp":"2025-01-01T10:00:05Z"}\n'
+            )
+            f.write(
+                '{"type":"assistant","uuid":"asst-123","timestamp":"2025-01-01T10:00:10Z"}\n'
+            )  # Duplicate
+
+        index = {"asst-123": "Duplicate Topic"}
+        summary = parse_session_minimal(conv_file, index)
+
+        assert summary is not None
+        assert summary.matched_summaries == [
+            "Duplicate Topic"
+        ]  # Should only appear once
+
+    def test_summary_file_size_limit(self, tmp_path):
+        """Test that large files are skipped when building index"""
+        # Create a large file (>10KB)
+        large_file = tmp_path / "large.jsonl"
+        with open(large_file, "w") as f:
+            # Write summaries that would total >10KB
+            for i in range(200):
+                f.write(
+                    f'{{"type":"summary","summary":"Topic {i}" * 50,"leafUuid":"uuid-{i}"}}\n'
+                )
+
+        # Create a small summary file
+        small_file = tmp_path / "small.jsonl"
+        with open(small_file, "w") as f:
+            f.write(
+                '{"type":"summary","summary":"Small Topic","leafUuid":"uuid-small"}\n'
+            )
+
+        index = build_summary_index(str(tmp_path))
+
+        # Should only contain the small file's summary
+        assert "uuid-small" in index
+        assert "uuid-0" not in index  # From large file
 
 
 if __name__ == "__main__":

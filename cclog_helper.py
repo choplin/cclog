@@ -27,6 +27,7 @@ class SessionSummary:
     # Optional fields - only populated when needed
     last_timestamp: Optional[datetime] = None
     line_count: Optional[int] = None
+    matched_summaries: Optional[list] = None
 
     @property
     def duration_seconds(self) -> int:
@@ -49,7 +50,7 @@ class SessionSummary:
     def formatted_summary(self) -> str:
         """Format first user message for display"""
         return format_summary(self.first_user_message)
-    
+
     @property
     def formatted_modified(self) -> str:
         """Format modification time as relative time"""
@@ -80,7 +81,7 @@ def format_relative_time(modification_time: float) -> str:
     """Format modification time as relative time (e.g., '6m ago')"""
     current_time = time.time()
     diff = int(current_time - modification_time)
-    
+
     if diff < 60:
         return f"{diff}s ago"
     elif diff < 3600:
@@ -99,7 +100,7 @@ def format_relative_time(modification_time: float) -> str:
         return f"{months}mo ago"
 
 
-def parse_timestamp(timestamp_str: str) -> Optional[datetime]:
+def parse_timestamp(timestamp_str: Optional[str]) -> Optional[datetime]:
     """Parse ISO timestamp string to datetime"""
     if not timestamp_str:
         return None
@@ -133,7 +134,9 @@ def extract_timestamp(data: dict) -> Optional[datetime]:
     return None
 
 
-def parse_session_minimal(file_path: Path) -> Optional[SessionSummary]:
+def parse_session_minimal(
+    file_path: Path, summary_index: Optional[dict] = None
+) -> Optional[SessionSummary]:
     """
     Parse session file efficiently
     - Find first line with timestamp
@@ -149,6 +152,8 @@ def parse_session_minimal(file_path: Path) -> Optional[SessionSummary]:
         first_user_msg = ""
         last_line = None
         line_count = 0
+        matched_summaries = []
+        assistant_uuids_checked = set()  # Track checked UUIDs to avoid duplicates
 
         with open(file_path, "r") as f:
             for line_num, line in enumerate(f, 1):
@@ -175,6 +180,14 @@ def parse_session_minimal(file_path: Path) -> Optional[SessionSummary]:
                         msg = extract_user_message(data)
                         if msg:
                             first_user_msg = msg
+
+                    # Check for assistant message UUIDs in summary index
+                    if summary_index and data.get("type") == "assistant":
+                        msg_uuid = data.get("uuid")
+                        if msg_uuid and msg_uuid not in assistant_uuids_checked:
+                            assistant_uuids_checked.add(msg_uuid)
+                            if msg_uuid in summary_index:
+                                matched_summaries.append(summary_index[msg_uuid])
 
                 except json.JSONDecodeError:
                     # Skip lines that aren't valid JSON
@@ -203,6 +216,7 @@ def parse_session_minimal(file_path: Path) -> Optional[SessionSummary]:
             file_size=stat.st_size,
             last_timestamp=last_timestamp,
             line_count=line_count,
+            matched_summaries=matched_summaries if matched_summaries else None,
         )
     except Exception:
         return None
@@ -215,6 +229,41 @@ def format_summary(first_user_msg):
 
     # Replace newlines with \n string
     return first_user_msg.replace("\n", "\\n").replace("\r", "\\r")
+
+
+def build_summary_index(project_dir):
+    """Build an index of leafUuid -> summary mappings from all summary files"""
+    summary_index = {}
+
+    try:
+        for file_path in Path(project_dir).glob("*.jsonl"):
+            # Quick check if it might be a summary file (small size)
+            try:
+                stat = file_path.stat()
+                # Skip large files (likely conversation files)
+                if stat.st_size > 10000:  # 10KB threshold
+                    continue
+
+                # Check if file contains summaries
+                with open(file_path, "r") as f:
+                    for line in f:
+                        try:
+                            data = json.loads(line.strip())
+                            if data.get("type") == "summary":
+                                leaf_uuid = data.get("leafUuid")
+                                summary_text = data.get("summary", "")
+                                if leaf_uuid and summary_text:
+                                    summary_index[leaf_uuid] = summary_text
+                        except json.JSONDecodeError:
+                            continue
+            except (OSError, IOError):
+                continue
+
+    except Exception:
+        # If indexing fails, return empty index
+        pass
+
+    return summary_index
 
 
 def get_terminal_width():
@@ -238,6 +287,9 @@ def get_terminal_width():
 
 def get_session_list(project_dir):
     """Generate list of sessions for fzf - streaming output for fast first results"""
+    # Build summary index first
+    summary_index = build_summary_index(project_dir)
+
     # Get all session files with their modification times (fast)
     files_with_mtime = []
     for file_path in Path(project_dir).glob("*.jsonl"):
@@ -262,17 +314,25 @@ def get_session_list(project_dir):
     # Calculate available width for message
     # Since fzf uses --with-nth="1", only the first field (before tab) is displayed
     # So we only need to fit the visible part in the terminal
-    fixed_width = 51  # TIMESTAMP(19) + Duration(8) + Messages(8) + Modified(8) + spacing(8)
+    # TIMESTAMP(19) + Duration(8) + Messages(8) + Modified(8) + spacing(8)
+    fixed_width = 51
     available_for_message = max(
         terminal_width - fixed_width - 2, 20
     )  # -2 for small margin
 
     # Parse and print each file one by one (streaming output)
     for file_path, _ in files_with_mtime:
-        summary = parse_session_minimal(file_path)
+        summary = parse_session_minimal(file_path, summary_index)
         if summary:
+            # Use matched summary if available, otherwise use first user message
+            if summary.matched_summaries:
+                # Use first matched summary with a prefix
+                display_msg = "📑 " + summary.matched_summaries[0]
+            else:
+                display_msg = summary.formatted_summary
+
             # Truncate message to fit terminal width
-            formatted_msg = summary.formatted_summary
+            formatted_msg = format_summary(display_msg)
             if len(formatted_msg) > available_for_message:
                 formatted_msg = formatted_msg[: available_for_message - 3] + "..."
 
@@ -284,7 +344,11 @@ def get_session_list(project_dir):
 
 def get_session_info(file_path):
     """Get detailed info about a session for preview"""
-    summary = parse_session_minimal(Path(file_path))
+    # Build summary index for the project directory
+    project_dir = Path(file_path).parent
+    summary_index = build_summary_index(project_dir)
+
+    summary = parse_session_minimal(Path(file_path), summary_index)
     if not summary:
         print(f"Error: Could not read file {file_path}")
         return
@@ -298,6 +362,12 @@ def get_session_info(file_path):
         )
     if summary.duration_seconds > 0:
         print(f"{'Duration:':<10} {summary.formatted_duration}")
+
+    # Display matched summaries if available
+    if summary.matched_summaries:
+        print(f"\n{'Topics:':<10}")
+        for i, topic in enumerate(summary.matched_summaries[:5]):  # Show max 5 topics
+            print(f"  • {topic}")
 
 
 def format_message_line(data):
