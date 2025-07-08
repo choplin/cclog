@@ -462,6 +462,240 @@ def view_session(file_path):
         print(f"Error reading file: {e}")
 
 
+# Cache for path lookups to avoid repeated filesystem checks
+_path_cache = {}
+
+
+def decode_project_path(encoded_name):
+    """Decode project directory name back to original path"""
+    # Claude encodes:
+    # "/" -> "-"
+    # "." -> "-"
+    # "_" -> "-"
+
+    # Decoding algorithm:
+    # 1. Process encoded path from left to right
+    # 2. For each "-", first try interpreting it as "/"
+    # 3. Check if the path up to that point exists
+    # 4. If path exists, continue from there
+    # 5. If path doesn't exist or would create "//", the "-" cannot be "/"
+    # 6. Collect segments as "unmatched" and look for next "-"
+    # 7. When finding next "-", try all combinations of ".", "_", and "-" for unmatched segments
+    # 8. Continue from any matched path
+    # 9. Number of candidates grows as 3^n where n is number of unmatched "-"
+
+    # Check cache first
+    if encoded_name in _path_cache:
+        return _path_cache[encoded_name]
+
+    if not encoded_name.startswith("-"):
+        # Relative path (shouldn't happen)
+        _path_cache[encoded_name] = encoded_name
+        return encoded_name
+
+    # Build path progressively
+    result = decode_path_progressive(encoded_name[1:])  # Remove leading "-"
+    _path_cache[encoded_name] = result
+    return result
+
+
+def decode_path_progressive(encoded):
+    """Decode path by progressively building and checking segments"""
+    current_path = ""
+    unmatched_segments = []
+    i = 0
+
+    while i < len(encoded):
+        # Find next dash
+        next_dash = encoded.find("-", i)
+
+        if next_dash == -1:
+            # No more dashes, add last segment
+            segment = encoded[i:]
+            if unmatched_segments or not segment:
+                # Have unmatched segments or empty segment
+                if segment:
+                    unmatched_segments.append(segment)
+                # Try all combinations
+                result = try_segment_combinations(current_path, unmatched_segments)
+                return (
+                    result
+                    if result
+                    else current_path + "/" + "-".join(unmatched_segments)
+                )
+            else:
+                # Simple case: just append
+                return current_path + "/" + segment
+
+        # Get segment up to the dash
+        segment = encoded[i:next_dash]
+
+        # If we have unmatched segments, we need to try combinations
+        if unmatched_segments:
+            # Add this segment and try combinations
+            if segment:  # Don't add empty segments
+                unmatched_segments.append(segment)
+
+            # Try all combinations up to this point
+            result = try_segment_combinations(current_path, unmatched_segments)
+            if result:
+                # Found a match, reset and continue
+                current_path = result
+                unmatched_segments = []
+                i = next_dash + 1
+            else:
+                # No match, continue collecting segments
+                i = next_dash + 1
+        else:
+            # No unmatched segments yet
+            if segment and os.path.exists(current_path + "/" + segment):
+                # This segment matches
+                current_path = current_path + "/" + segment
+                i = next_dash + 1
+            else:
+                # This segment doesn't match, start collecting
+                if not segment:
+                    # Empty segment means we have --, which means the previous dash cannot be /
+                    # We need to look back and reinterpret
+                    # For now, just add empty segment as a marker
+                    unmatched_segments.append("")
+                else:
+                    unmatched_segments.append(segment)
+                i = next_dash + 1
+
+    return current_path
+
+
+def try_segment_combinations(base_path, segments):
+    """Try all combinations of joining segments with -, ., or _"""
+    import itertools
+
+    if not segments:
+        return None
+
+    # Handle special case where first segment is empty (from --)
+    if segments[0] == "":
+        # This means we have a leading -, which must be . or -
+        remaining_segments = segments[1:] if len(segments) > 1 else []
+
+        # Try . first (for hidden files/dirs), then _, then -
+        for prefix in [".", "_", "-"]:
+            if remaining_segments:
+                # Continue with remaining segments
+                prefixed_segments = [
+                    prefix + remaining_segments[0]
+                ] + remaining_segments[1:]
+                result = try_segment_combinations(base_path, prefixed_segments)
+                if result:
+                    return result
+            else:
+                # Just the prefix
+                test_path = os.path.join(base_path, prefix)
+                if os.path.exists(test_path):
+                    return test_path
+        return None
+
+    if len(segments) == 1:
+        # Single segment, just try it
+        test_path = os.path.join(base_path, segments[0])
+        return test_path if os.path.exists(test_path) else None
+
+    # Multiple segments, try all combinations of -, ., and _
+    # n-1 positions between n segments
+    for separators in itertools.product(["-", ".", "_"], repeat=len(segments) - 1):
+        # Build the combined segment
+        combined = segments[0]
+        for i, sep in enumerate(separators):
+            combined += sep + segments[i + 1]
+
+        test_path = os.path.join(base_path, combined)
+        if os.path.exists(test_path):
+            return test_path
+
+    return None
+
+
+def get_project_last_activity(project_dir):
+    """Get the most recent modification time from all sessions in a project"""
+    latest_time = 0
+    session_count = 0
+
+    try:
+        for file_path in Path(project_dir).glob("*.jsonl"):
+            try:
+                stat = file_path.stat()
+                if stat.st_mtime > latest_time:
+                    latest_time = stat.st_mtime
+                session_count += 1
+            except OSError:
+                continue
+    except Exception:
+        pass
+
+    return latest_time, session_count
+
+
+def get_projects_list():
+    """Generate list of all projects sorted by recent activity"""
+    claude_projects_base = Path.home() / ".claude" / "projects"
+
+    if not claude_projects_base.exists():
+        print("No Claude projects found")
+        return
+
+    # Collect all projects with their last activity time
+    projects = []
+
+    for project_dir in claude_projects_base.iterdir():
+        if project_dir.is_dir():
+            last_activity, session_count = get_project_last_activity(project_dir)
+            if session_count > 0:  # Only include projects with sessions
+                project_path = decode_project_path(project_dir.name)
+                projects.append(
+                    {
+                        "encoded_name": project_dir.name,
+                        "path": project_path,
+                        "last_activity": last_activity,
+                        "session_count": session_count,
+                    }
+                )
+
+    # Sort by last activity (newest first)
+    projects.sort(key=lambda x: x["last_activity"], reverse=True)
+
+    # Print headers
+    print("Claude Code Projects (sorted by recent activity)")
+    print("Enter: cd to project directory, Ctrl-o: Open cclog for project")
+    print("LAST_ACTIVE    SESSIONS  PROJECT_PATH")
+
+    # Get terminal width for proper truncation
+    terminal_width = get_terminal_width()
+
+    # Calculate available width for path
+    # Since fzf uses --with-nth="1", only the first field (before Unit Separator) is displayed
+    # LAST_ACTIVE(14) + space(1) + SESSIONS(8) + spacing(2) = 25
+    fixed_width = 25
+    available_for_path = max(
+        terminal_width - fixed_width - 2, 20
+    )  # -2 for small margin
+
+    # Print each project
+    for project in projects:
+        last_active = format_relative_time(project["last_activity"])
+        path = project["path"]
+
+        # Truncate path if necessary
+        if len(path) > available_for_path:
+            # Show the end of the path which usually has the most specific info
+            path = "..." + path[-(available_for_path - 3) :]
+
+        # Use Unit Separator as delimiter
+        # Send the actual decoded path (not encoded name) after the delimiter
+        print(
+            f"{last_active:<14} {project['session_count']:>8}  {path}\x1f{project['path']}"
+        )
+
+
 def main():
     """Main entry point"""
     if len(sys.argv) < 2:
@@ -476,6 +710,8 @@ def main():
         get_session_info(sys.argv[2])
     elif command == "view" and len(sys.argv) >= 3:
         view_session(sys.argv[2])
+    elif command == "projects":
+        get_projects_list()
     else:
         print(f"Unknown command: {command}")
         sys.exit(1)

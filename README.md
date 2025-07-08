@@ -96,7 +96,7 @@ antibody bundle choplin/cclog
 
 ## Usage
 
-### List sessions with fzf
+### List sessions for current directory
 
 ```bash
 cclog
@@ -108,6 +108,25 @@ cclog
 - `Ctrl-V`: View the full log in your pager
 - `Ctrl-P`: Return the file path
 - `Ctrl-R`: Resume the conversation with `claude -r`
+
+### List all projects
+
+Browse all Claude Code projects sorted by recent activity:
+
+```bash
+cclog-projects
+# or shorter
+ccproject
+# or via cclog
+cclog --projects
+cclog -p
+```
+
+**Key bindings:**
+
+- `Enter`: Change directory to the selected project
+
+The preview window shows the most recent sessions for each project, helping you quickly identify the project you're looking for.
 
 ### View a specific log file
 
@@ -132,10 +151,12 @@ cclog_info ~/.claude/projects/*/session-id.jsonl
 - Color-coded messages (User: Cyan, Assistant: White, Tool: Gray)
 - Session information display (file, messages count, start time, duration)
 - Interactive browsing with fzf
+- Browse all projects across your system sorted by recent activity
 - Resume conversations directly from the browser
 - Performance optimized with Python helper script for large conversation histories
 - Stream-based processing for efficient memory usage
 - Duration and message count columns in the conversation list
+- Topic summaries displayed when available (📑 prefix)
 
 ## Testing
 

@@ -109,14 +109,17 @@ cclog_info() {
 
 # Function to browse logs with fzf
 cclog() {
+    # If directory argument provided, use it; otherwise use current directory
+    local target_dir="${1:-$(pwd)}"
+
     # Convert "/" to "-" and "." to "-" for project directory name
-    local project_dir=$(pwd | sed 's/\//-/g; s/\./-/g')
+    local project_dir=$(echo "$target_dir" | sed 's/\//-/g; s/\./-/g')
 
     local claude_projects_dir="$HOME/.claude/projects/$project_dir"
 
     # Check if the directory exists
     if [ ! -d "$claude_projects_dir" ]; then
-        echo "No Claude logs found for this project: $(pwd)" >&2
+        echo "No Claude logs found for this project: $target_dir" >&2
         return 1
     fi
 
@@ -169,7 +172,55 @@ cclog() {
     fi
 }
 
+# Function to browse all projects with fzf
+cclog-projects() {
+    # Check if we have the required tools
+    if [ ! -f "$CCLOG_HELPER_SCRIPT" ] || [ -z "$CCLOG_PYTHON" ]; then
+        echo "Error: Python 3 is required for cclog-projects" >&2
+        return 1
+    fi
+
+    # Create preview command - show sessions for the selected project
+    local preview_cmd="$CCLOG_PYTHON $CCLOG_HELPER_SCRIPT list '$HOME/.claude/projects/{-1}' | head -20"
+
+    # Get terminal width for proper display
+    if [ -z "$COLUMNS" ]; then
+        COLUMNS=$(tput cols 2>/dev/null || stty size 2>/dev/null | cut -d' ' -f2 || echo 80)
+    fi
+
+    # Use fzf with project list
+    local result=$(COLUMNS="$COLUMNS" "$CCLOG_PYTHON" "$CCLOG_HELPER_SCRIPT" projects | fzf \
+        --header-lines=3 \
+        --delimiter=$'\x1f' \
+        --with-nth="1" \
+        --preview "$preview_cmd" \
+        --preview-window="down:50%:nowrap" \
+        --height="100%" \
+        --ansi)
+
+    # Process result
+    if [ -n "$result" ]; then
+        # Extract the actual project path (after delimiter)
+        local project_path=$(printf "%s" "$result" | awk -F$'\x1f' '{print $NF}' | tr -d '\n')
+
+        if [ -n "$project_path" ]; then
+            echo "cd $project_path"
+            cd "$project_path"
+        fi
+    fi
+}
+
+# Shorter alias for convenience
+ccproject() {
+    cclog-projects "$@"
+}
+
 # Execute the function if script is run directly
 if [ "${BASH_SOURCE[0]}" = "${0}" ]; then
-    cclog
+    # Check if first argument is "-p" or "--projects"
+    if [ "$1" = "-p" ] || [ "$1" = "--projects" ]; then
+        cclog-projects
+    else
+        cclog
+    fi
 fi
