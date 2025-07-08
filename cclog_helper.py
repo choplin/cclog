@@ -690,9 +690,9 @@ def get_projects_list():
             path = "..." + path[-(available_for_path - 3) :]
 
         # Use Unit Separator as delimiter
-        # Send the actual decoded path (not encoded name) after the delimiter
+        # Send the encoded name for fzf preview to work correctly
         print(
-            f"{last_active:<14} {project['session_count']:>8}  {path}\x1f{project['path']}"
+            f"{last_active:<14} {project['session_count']:>8}  {path}\x1f{project['encoded_name']}"
         )
 
 
@@ -712,6 +712,9 @@ def main():
         view_session(sys.argv[2])
     elif command == "projects":
         get_projects_list()
+    elif command == "decode" and len(sys.argv) >= 3:
+        # Decode a project path
+        print(decode_project_path(sys.argv[2]))
     else:
         print(f"Unknown command: {command}")
         sys.exit(1)

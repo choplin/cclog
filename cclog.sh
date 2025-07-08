@@ -200,12 +200,16 @@ __cclog_projects() {
 
     # Process result
     if [ -n "$result" ]; then
-        # Extract the actual project path (after delimiter)
-        local project_path=$(printf "%s" "$result" | awk -F$'\x1f' '{print $NF}' | tr -d '\n')
+        # Extract the encoded project name (after delimiter)
+        local encoded_name=$(printf "%s" "$result" | awk -F$'\x1f' '{print $NF}' | tr -d '\n')
 
-        if [ -n "$project_path" ]; then
-            echo "cd $project_path"
-            cd "$project_path"
+        if [ -n "$encoded_name" ]; then
+            # Decode the project path
+            local project_path=$("$CCLOG_PYTHON" "$CCLOG_HELPER_SCRIPT" decode "$encoded_name")
+            if [ -n "$project_path" ]; then
+                echo "cd $project_path"
+                cd "$project_path"
+            fi
         fi
     fi
 }
@@ -213,28 +217,28 @@ __cclog_projects() {
 # Main entry point for cclog command
 cclog() {
     case "${1}" in
-        projects|p)
-            shift
-            __cclog_projects "$@"
-            ;;
-        view|v)
-            shift
-            if [ -z "$1" ]; then
-                echo "Usage: cclog view <session-file>" >&2
-                return 1
-            fi
-            __cclog_view "$1"
-            ;;
-        info|i)
-            shift
-            if [ -z "$1" ]; then
-                echo "Usage: cclog info <session-file>" >&2
-                return 1
-            fi
-            __cclog_info "$1"
-            ;;
-        help|h|--help|-h)
-            cat << EOF
+    projects | p)
+        shift
+        __cclog_projects "$@"
+        ;;
+    view | v)
+        shift
+        if [ -z "$1" ]; then
+            echo "Usage: cclog view <session-file>" >&2
+            return 1
+        fi
+        __cclog_view "$1"
+        ;;
+    info | i)
+        shift
+        if [ -z "$1" ]; then
+            echo "Usage: cclog info <session-file>" >&2
+            return 1
+        fi
+        __cclog_info "$1"
+        ;;
+    help | h | --help | -h)
+        cat <<EOF
 cclog - Browse Claude Code conversation history
 
 Usage:
@@ -250,14 +254,13 @@ Options:
     info, i                          Show session information
     help, h, --help, -h              Show help
 EOF
-            ;;
-        *)
-            # Default: browse current directory
-            __cclog_browse "$@"
-            ;;
+        ;;
+    *)
+        # Default: browse current directory
+        __cclog_browse "$@"
+        ;;
     esac
 }
-
 
 # Execute the function if script is run directly
 if [ "${BASH_SOURCE[0]}" = "${0}" ]; then
