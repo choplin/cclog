@@ -446,7 +446,7 @@ def get_message_color(msg_type, is_tool):
 
 
 def view_session(file_path):
-    """View session with formatting (like cclog_view but in Python)"""
+    """View session with color-coded formatting for display"""
     try:
         with open(file_path, "r") as f:
             for line in f:
@@ -665,7 +665,7 @@ def get_projects_list():
 
     # Print headers
     print("Claude Code Projects (sorted by recent activity)")
-    print("Enter: cd to project directory, Ctrl-o: Open cclog for project")
+    print("Enter: cd to project directory")
     print("LAST_ACTIVE    SESSIONS  PROJECT_PATH")
 
     # Get terminal width for proper truncation

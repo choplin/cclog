@@ -1,5 +1,5 @@
 #!/bin/bash
-# Browse Claude Code logs with fzf
+# cclog - Browse Claude Code conversation history with fzf
 
 # Get the full path to this script at the top level
 CCLOG_SCRIPT_PATH="${BASH_SOURCE[0]:-$0}"
@@ -22,10 +22,10 @@ fi
 # Get the helper script path
 CCLOG_HELPER_SCRIPT="$(dirname "$CCLOG_SCRIPT_PATH")/cclog_helper.py"
 
-# Function to format Claude Code chat logs with colors
-cclog_view() {
+# Function to format Claude Code chat logs with colors (internal use)
+__cclog_view() {
     if [ $# -eq 0 ]; then
-        echo "Error: cclog_view requires a file argument" >&2
+        echo "Error: view requires a file argument" >&2
         return 1
     fi
 
@@ -35,7 +35,7 @@ cclog_view() {
     if [ -f "$CCLOG_HELPER_SCRIPT" ] && [ -n "$CCLOG_PYTHON" ]; then
         "$CCLOG_PYTHON" "$CCLOG_HELPER_SCRIPT" view "$file"
     else
-        echo "Error: Python 3 is required for cclog_view" >&2
+        echo "Error: Python 3 is required for view" >&2
         return 1
     fi
 }
@@ -89,10 +89,10 @@ __cclog_generate_list() {
     fi
 }
 
-# Function to show session info
-cclog_info() {
+# Function to show session info (internal use)
+__cclog_info() {
     if [ $# -eq 0 ]; then
-        echo "Error: cclog_info requires a file argument" >&2
+        echo "Error: info requires a file argument" >&2
         return 1
     fi
 
@@ -102,13 +102,13 @@ cclog_info() {
     if [ -f "$CCLOG_HELPER_SCRIPT" ] && [ -n "$CCLOG_PYTHON" ]; then
         "$CCLOG_PYTHON" "$CCLOG_HELPER_SCRIPT" info "$file"
     else
-        echo "Error: Python 3 is required for cclog_info" >&2
+        echo "Error: Python 3 is required for info" >&2
         return 1
     fi
 }
 
-# Function to browse logs with fzf
-cclog() {
+# Function to browse logs with fzf (internal use)
+__cclog_browse() {
     # If directory argument provided, use it; otherwise use current directory
     local target_dir="${1:-$(pwd)}"
 
@@ -154,9 +154,9 @@ cclog() {
                 # View the log
                 local selected_file="$claude_projects_dir/${full_id}.jsonl"
                 if [ -n "$PAGER" ]; then
-                    cclog_view "$selected_file" | $PAGER
+                    __cclog_view "$selected_file" | $PAGER
                 else
-                    cclog_view "$selected_file" | less -R
+                    __cclog_view "$selected_file" | less -R
                 fi
                 ;;
             ctrl-p)
@@ -172,11 +172,11 @@ cclog() {
     fi
 }
 
-# Function to browse all projects with fzf
-cclog-projects() {
+# Function to browse all projects with fzf (internal use)
+__cclog_projects() {
     # Check if we have the required tools
     if [ ! -f "$CCLOG_HELPER_SCRIPT" ] || [ -z "$CCLOG_PYTHON" ]; then
-        echo "Error: Python 3 is required for cclog-projects" >&2
+        echo "Error: Python 3 is required for projects" >&2
         return 1
     fi
 
@@ -210,17 +210,56 @@ cclog-projects() {
     fi
 }
 
-# Shorter alias for convenience
-ccproject() {
-    cclog-projects "$@"
+# Main entry point for cclog command
+cclog() {
+    case "${1}" in
+        projects|p)
+            shift
+            __cclog_projects "$@"
+            ;;
+        view|v)
+            shift
+            if [ -z "$1" ]; then
+                echo "Usage: cclog view <session-file>" >&2
+                return 1
+            fi
+            __cclog_view "$1"
+            ;;
+        info|i)
+            shift
+            if [ -z "$1" ]; then
+                echo "Usage: cclog info <session-file>" >&2
+                return 1
+            fi
+            __cclog_info "$1"
+            ;;
+        help|h|--help|-h)
+            cat << EOF
+cclog - Browse Claude Code conversation history
+
+Usage:
+    cclog [options]           Browse sessions in current directory
+    cclog projects            Browse all projects
+    cclog view <session>      View session content
+    cclog info <session>      Show session information
+    cclog help               Show this help message
+
+Options:
+    projects, p                       Browse all projects
+    view, v                          View session content
+    info, i                          Show session information
+    help, h, --help, -h              Show help
+EOF
+            ;;
+        *)
+            # Default: browse current directory
+            __cclog_browse "$@"
+            ;;
+    esac
 }
+
 
 # Execute the function if script is run directly
 if [ "${BASH_SOURCE[0]}" = "${0}" ]; then
-    # Check if first argument is "-p" or "--projects"
-    if [ "$1" = "-p" ] || [ "$1" = "--projects" ]; then
-        cclog-projects
-    else
-        cclog
-    fi
+    cclog "$@"
 fi

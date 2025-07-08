@@ -9,9 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- New `cclog-projects` (or `ccproject`) command to browse all Claude Code projects
-- Summary indexing shows conversation topics with 📑 prefix
-- Comprehensive documentation of Claude Projects JSONL file format
+- New subcommand support for `cclog`
+- `cclog projects` to browse all Claude Code projects
+- Conversation topics shown with 📑 prefix
+
+### Changed
+
+- `cclog_view` and `cclog_info` functions are now subcommands: `cclog view` and `cclog info`
 
 ## [0.3.0] - 2025-07-05
 
@@ -57,9 +61,3 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Color-coded message display (user: cyan, assistant: white, tools: gray)
 - Session metadata display (ID, timestamp, message count, duration)
 - Return session ID with `Enter` or file path with `Ctrl-p`
-
-### Requirements
-
-- fzf
-- jq
-- Claude Code CLI

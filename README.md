@@ -1,6 +1,6 @@
-# cclog - Claude Code Session Browser
+# cclog - Claude Code Log Browser
 
-Browse and view Claude Code session logs using fzf.
+Browse and view Claude Code conversation history using fzf.
 
 https://github.com/user-attachments/assets/5019c393-8082-4cbc-b2b5-ec0549585681
 
@@ -114,12 +114,7 @@ cclog
 Browse all Claude Code projects sorted by recent activity:
 
 ```bash
-cclog-projects
-# or shorter
-ccproject
-# or via cclog
-cclog --projects
-cclog -p
+cclog projects
 ```
 
 **Key bindings:**
@@ -128,16 +123,16 @@ cclog -p
 
 The preview window shows the most recent sessions for each project, helping you quickly identify the project you're looking for.
 
-### View a specific log file
+### View a specific session file
 
 ```bash
-cclog_view ~/.claude/projects/*/session-id.jsonl
+cclog view ~/.claude/projects/*/session-id.jsonl
 ```
 
 ### Show session information
 
 ```bash
-cclog_info ~/.claude/projects/*/session-id.jsonl
+cclog info ~/.claude/projects/*/session-id.jsonl
 ```
 
 ## Requirements
