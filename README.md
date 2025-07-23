@@ -77,7 +77,7 @@ zplug "choplin/cclog"
 #### Antigen
 
 ```bash
-antigen bundle choplin/cclog
+antigen bundle choplin/cclog@main
 ```
 
 #### Zgen
